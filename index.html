@@ -1672,6 +1672,8 @@ function pipelineCard(l){
       if(!tagDef)return `<span class="lead-tag-badge" style="background:rgba(148,163,184,.15);color:#94a3b8;">${t}</span>`;
       return `<span class="lead-tag-badge" style="background:${hexToRgba(tagDef.color,.18)};color:${tagDef.color};">${tagDef.emoji} ${tagDef.name}</span>`;
     }).join('')}</div>`:''}
+    ${(podeVerTodasEmpresas()&&l.empresa)?`<div style="display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${empresaInfo(l.empresa).cor};background:${hexToRgba(empresaInfo(l.empresa).cor,.14)};border-radius:20px;padding:2px 8px;margin-bottom:6px;">
+      <span style="width:5px;height:5px;border-radius:50%;background:${empresaInfo(l.empresa).cor};"></span>${l.empresa==='construtora'?'Construtora':'Automação'}</div>`:''}
     <div class="lead-name">${temp} ${l.name||'—'}</div>
     <div class="lead-meta">
       ${l.phone?`<div class="lead-meta-row"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.22 1.18 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.09a16 16 0 006 6l.56-.56a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>${l.phone}</div>`:''}
