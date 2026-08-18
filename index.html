@@ -1224,6 +1224,39 @@ const STAGES={
   not_going:{label:'Não vai fazer',badge:'badge-not-going',dot:'#7c3aed'}
 };
 
+// ===== ETAPAS POR EMPRESA (novo) =====
+const STAGES_CONSTRUTORA={
+  new:{label:'Novo Lead',badge:'badge-new',dot:'#3d7eff'},
+  contato_inicial:{label:'Contato Inicial',badge:'badge-contact',dot:'#a855f7'},
+  contact:{label:'Contato Realizado',badge:'badge-contact',dot:'#14b8a6'},
+  visita_agendada:{label:'Visita Agendada',badge:'badge-proposal',dot:'#f59e0b'},
+  reuniao:{label:'Reunião Realizada',badge:'badge-proposal',dot:'#10b981'},
+  negotiation:{label:'Negociação',badge:'badge-negotiation',dot:'#ec4899'},
+  won:{label:'Fechado',badge:'badge-won',dot:'#22c55e'},
+  retrabalho:{label:'Retrabalho Futuro',badge:'badge-standby',dot:'#f59e0b'},
+  lost:{label:'Lead Perdido',badge:'badge-lost',dot:'#ef4444'}
+};
+const STAGES_POR_EMPRESA={ automacao:STAGES, construtora:STAGES_CONSTRUTORA };
+// mapa com TODAS as etapas — usado só pra exibir o nome de um lead qualquer
+const STAGE_INFO=Object.assign({},STAGES,STAGES_CONSTRUTORA);
+// etapas que montam as colunas, conforme a empresa que está sendo vista
+function stagesAtivos(){
+  if(typeof empresaAtiva!=='undefined' && empresaAtiva==='__todas') return STAGE_INFO;
+  const emp=(typeof empresaAtiva!=='undefined' && empresaAtiva) ? empresaAtiva : 'automacao';
+  return STAGES_POR_EMPRESA[emp]||STAGES;
+}
+// preenche o seletor de etapa do modal conforme a empresa
+function preencherEtapas(valorAtual){
+  const sel=document.getElementById('l-stage');
+  if(!sel)return;
+  const st=stagesAtivos();
+  sel.innerHTML=Object.entries(st).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+  if(valorAtual && !st[valorAtual] && STAGE_INFO[valorAtual]){
+    sel.innerHTML+=`<option value="${valorAtual}">${STAGE_INFO[valorAtual].label}</option>`;
+  }
+  sel.value=valorAtual||Object.keys(st)[0];
+}
+
 // SESSION
 function saveSession(u){localStorage.setItem(SESSION_KEY,JSON.stringify({user:u,expires:Date.now()+SESSION_DAYS*86400000}));}
 function loadSession(){try{const r=localStorage.getItem(SESSION_KEY);if(!r)return null;const s=JSON.parse(r);if(Date.now()>s.expires){localStorage.removeItem(SESSION_KEY);return null;}return s.user;}catch(e){return null;}}
@@ -1292,6 +1325,7 @@ function montarSeletorEmpresa(){
 function trocarEmpresa(){
   empresaAtiva=document.getElementById('empresaSelect').value;
   loadLeads();
+  if(typeof renderPipeline==='function')setTimeout(renderPipeline,300);
   showToast(empresaAtiva==='__todas'?'Mostrando as duas empresas':'Mostrando '+empresaInfo(empresaAtiva).nome,'success');
 }
 
@@ -1502,11 +1536,11 @@ function renderCharts(){
   const period=document.getElementById('chartPeriod').value;
   let f=allLeads;
   if(period!=='all'){const c=new Date();c.setDate(c.getDate()-parseInt(period));f=allLeads.filter(l=>new Date(l.created_at)>=c);}
-  const counts={};Object.keys(STAGES).forEach(s=>counts[s]=0);
+  const st=stagesAtivos();const counts={};Object.keys(st).forEach(s=>counts[s]=0);
   f.forEach(l=>{if(counts[l.stage]!==undefined)counts[l.stage]++;});
   const ctx=document.getElementById('stageChart').getContext('2d');
   if(stageChart)stageChart.destroy();
-  stageChart=new Chart(ctx,{type:'bar',data:{labels:Object.values(STAGES).map(s=>s.label),datasets:[{data:Object.values(counts),backgroundColor:['#3d7eff33','#a855f733','#f59e0b33','#10b98133','#22c55e55','#ef444433'],borderColor:['#3d7eff','#a855f7','#f59e0b','#10b981','#22c55e','#ef4444'],borderWidth:1.5,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a6070',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a6070',stepSize:1}}}}});
+  stageChart=new Chart(ctx,{type:'bar',data:{labels:Object.values(st).map(s=>s.label),datasets:[{data:Object.values(counts),backgroundColor:['#3d7eff33','#a855f733','#f59e0b33','#10b98133','#22c55e55','#ef444433'],borderColor:['#3d7eff','#a855f7','#f59e0b','#10b981','#22c55e','#ef4444'],borderWidth:1.5,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a6070',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a6070',stepSize:1}}}}});
 }
 function renderSellerRanking(){
   const el=document.getElementById('sellerRanking');
@@ -1538,7 +1572,7 @@ function filterLeads(){
 }
 function leadRow(l,cols){
   const s=allSellers.find(s=>s.id==l.seller_id);
-  const stage=STAGES[l.stage]||STAGES.new;
+  const stage=STAGE_INFO[l.stage]||STAGE_INFO.new;
   const date=l.created_at?new Date(l.created_at).toLocaleDateString('pt-BR'):'—';
   const value=l.value?'R$ '+parseFloat(l.value).toLocaleString('pt-BR'):'—';
   const waNum=l.phone?l.phone.replace(/\D/g,''):'';
@@ -1583,7 +1617,7 @@ function renderPipeline(){
   const standbyCount = allLeads.filter(l=>l.stage==='standby').length;
   const sc = document.getElementById('standbyCount');
   if(sc) sc.textContent = standbyCount;
-  board.innerHTML = Object.entries(STAGES).filter(([key])=>key!=='standby').map(([key,stage]) => {
+  board.innerHTML = Object.entries(stagesAtivos()).filter(([key])=>key!=='standby').map(([key,stage]) => {
     const leads = filtered.filter(l => l.stage===key);
     const total = leads.reduce((a,l) => a+(parseFloat(l.value)||0), 0);
     const cards = leads.length
@@ -1647,7 +1681,7 @@ async function onDrop(e,newStage){
   if(!lead||lead.stage===newStage){dragLeadId=null;return;}
   const{error}=await db.from('leads').update({stage:newStage}).eq('id',dragLeadId);
   if(error){showToast('Erro ao mover lead.','error');dragLeadId=null;return;}
-  showToast('Lead movido para '+STAGES[newStage].label+'!','success');
+  showToast('Lead movido para '+(STAGE_INFO[newStage]?STAGE_INFO[newStage].label:newStage)+'!','success');
   dragLeadId=null;
   await loadLeads();renderDashboard();renderPipeline();
 }
@@ -1704,7 +1738,7 @@ function previewReport(){
   if(!data.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text3);">Nenhum resultado.</td></tr>';return;}
   tbody.innerHTML=data.map(l=>{
     const s=allSellers.find(s=>s.id==l.seller_id);
-    const stage=STAGES[l.stage]||STAGES.new;
+    const stage=STAGE_INFO[l.stage]||STAGE_INFO.new;
     return `<tr onclick="openDetail(${l.id})" style="cursor:pointer;">
       <td style="color:var(--text);font-weight:500;">${l.name||'—'}</td>
       <td>${l.phone||'—'}</td><td>${l.origin||'—'}</td>
@@ -1730,7 +1764,7 @@ function exportPDF(){
     head:[['Nome','Telefone','Origem','Vendedor','Estágio','Valor','Data']],
     body:data.map(l=>{
       const s=allSellers.find(s=>s.id==l.seller_id);
-      return[l.name||'—',l.phone||'—',l.origin||'—',s?s.nickname||s.name:'—',STAGES[l.stage]?.label||'—',l.value?'R$ '+parseFloat(l.value).toLocaleString('pt-BR'):'—',l.created_at?new Date(l.created_at).toLocaleDateString('pt-BR'):'—'];
+      return[l.name||'—',l.phone||'—',l.origin||'—',s?s.nickname||s.name:'—',STAGE_INFO[l.stage]?.label||'—',l.value?'R$ '+parseFloat(l.value).toLocaleString('pt-BR'):'—',l.created_at?new Date(l.created_at).toLocaleDateString('pt-BR'):'—'];
     }),
     styles:{fontSize:9,cellPadding:4},
     headStyles:{fillColor:[61,126,255],textColor:255,fontStyle:'bold'},
@@ -1748,7 +1782,7 @@ function openLeadModal(lead=null){
   document.getElementById('editLeadId').value=lead?lead.id:'';
   document.getElementById('leadModalTitle').textContent=lead?'Editar Lead':'Novo Lead';
   [['l-name','name'],['l-phone','phone'],['l-address','address'],['l-notes','notes'],['l-value','value']].forEach(([id,k])=>document.getElementById(id).value=lead?(lead[k]||''):'');
-  document.getElementById('l-stage').value=lead?(lead.stage||'new'):'new';
+  preencherEtapas(lead?(lead.stage||'new'):'new');
   document.getElementById('l-temp').value=lead?(lead.temperature||'hot'):'hot';
   // ===== empresa do lead (novo): só aparece pra quem vê as duas =====
   const gEmp=document.getElementById('l-empresa-group');
@@ -1882,7 +1916,7 @@ async function deleteSeller(id){
 function openDetail(id){
   const l=allLeads.find(l=>l.id==id);if(!l)return;
   currentDetailLead=l;
-  const s=allSellers.find(s=>s.id==l.seller_id),stage=STAGES[l.stage]||STAGES.new;
+  const s=allSellers.find(s=>s.id==l.seller_id),stage=STAGE_INFO[l.stage]||STAGE_INFO.new;
   document.getElementById('dp-name').textContent=l.name||'—';
   document.getElementById('dp-stage-label').textContent=stage.label;
   document.getElementById('dp-phone').textContent=l.phone||'—';
@@ -1913,6 +1947,7 @@ function openDetail(id){
   // Anexos
   renderDpAttachList();
   document.getElementById('detailPanel').classList.add('open');
+  ajustarFab(true);
 }
 
 async function toggleDpTag(el){
@@ -1933,7 +1968,19 @@ async function updateStage(id,stage){
   await loadLeads();renderDashboard();renderPipeline();
   if(currentDetailLead?.id==id)openDetail(id);
 }
-function closeDetail(){document.getElementById('detailPanel').classList.remove('open');}
+function closeDetail(){document.getElementById('detailPanel').classList.remove('open');ajustarFab(false);}
+// o botão + desliza junto com o painel, pra não cobrir a leitura
+function ajustarFab(aberto){
+  const fab=document.getElementById('fabNewLead');
+  if(!fab)return;
+  if(window.innerWidth<=768){ fab.style.right='24px'; fab.style.opacity=aberto?'0':'1'; fab.style.pointerEvents=aberto?'none':'auto'; return; }
+  fab.style.opacity='1'; fab.style.pointerEvents='auto';
+  fab.style.right = aberto ? '424px' : '24px';
+}
+window.addEventListener('resize',function(){
+  const p=document.getElementById('detailPanel');
+  ajustarFab(!!(p&&p.classList.contains('open')));
+});
 function editCurrentLead(){if(currentDetailLead){closeDetail();openLeadModal(currentDetailLead);}}
 async function deleteCurrentLead(){
   if(!currentDetailLead||!confirm('Excluir este lead?'))return;
@@ -2067,7 +2114,7 @@ function openNotifPanel(){
           <div style="font-size:13px;font-weight:500;margin-bottom:3px;">${l.name}</div>
           ${l.reminder_note?`<div style="font-size:12px;color:var(--text3);">${l.reminder_note}</div>`:''}
           <div style="font-size:11px;color:var(--amber);margin-top:3px;">🔔 ${new Date(l.reminder_date).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${STAGES[l.stage]?.label||l.stage}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${STAGE_INFO[l.stage]?.label||l.stage}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
           ${l.phone?`<a href="https://wa.me/55${l.phone.replace(/\D/g,'')}" target="_blank" onclick="event.stopPropagation()" style="background:rgba(37,211,102,.15);border:none;border-radius:6px;padding:3px 8px;font-size:11px;color:#25d366;text-decoration:none;white-space:nowrap;">WhatsApp</a>`:''}
@@ -2385,7 +2432,7 @@ async function renderLogs(){
     const wh=allWebhooks.find(w=>w.token==l.webhook_token);
     const s=allSellers.find(s=>s.id==l.seller_id);
     const date=l.created_at?new Date(l.created_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
-    const stage=STAGES[l.stage]||STAGES.new;
+    const stage=STAGE_INFO[l.stage]||STAGE_INFO.new;
     return `<tr onclick="openDetail(${l.id})" style="cursor:pointer;">
       <td><span style="background:rgba(34,197,94,.15);color:#4ade80;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;">✅ sucesso</span></td>
       <td><span style="font-size:12px;font-weight:500;">${wh?wh.name:'—'}</span><br><span style="font-size:10px;color:var(--text3);">webhook</span></td>
@@ -2764,7 +2811,7 @@ function mobileNavTo(page){
 </div>
 
 <!-- FAB NOVO LEAD -->
-<div id="fabNewLead" style="display:none;position:fixed;bottom:90px;right:24px;z-index:9996;">
+<div id="fabNewLead" style="display:none;position:fixed;bottom:90px;right:24px;z-index:9996;transition:right .25s;">
   <button onclick="openLeadModal()" style="width:48px;height:48px;background:var(--accent);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(61,126,255,.4);transition:all .15s;" onmouseenter="this.style.transform='scale(1.1)';document.getElementById('fabLabel').style.display='block'" onmouseleave="this.style.transform='scale(1)';document.getElementById('fabLabel').style.display='none'">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
   </button>
